@@ -113,46 +113,112 @@ public:
 	}
 };
 
-void ApplyGravity(Vector& Velocity, Vector& Position, double DeltaTime)
-{
-	static const Vector Gravity(.0, 9.8 * 0.0001);
-	Vector OldVelocity = Velocity;
-	OldVelocity = OldVelocity + Gravity * DeltaTime;
-	Velocity = OldVelocity;
-	Position = Position + Velocity;
-}
+class Ball {
+public:
+	Vector Position;
+	Vector Velocity;
+public:
+	Ball() {}
 
-int main(int argc, char** argv)
-{
-	SDL_Init(SDL_INIT_EVERYTHING);
-	SDL_Window* Window = SDL_CreateWindow("PhyWater", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 640, 480, 0);
-	SDL_Renderer* Render = SDL_CreateRenderer(Window, -1, 0);
+	void Update(float DeltaTime)
+	{
+		static const Vector Gravity(.0, 9.8 * 0.0001);
+		Vector OldVelocity = Velocity;
+		OldVelocity = OldVelocity + Gravity * DeltaTime;
+		Velocity = OldVelocity;
+		Position = Position + Velocity;
+		printf("\rPos:%lf Vel:%lf", Position.Y, Velocity.Y);
+	}
+};
 
-	Vector Position(320.0,240.0);
-	Vector Velocity(.0, .0);
+class Application {
+public:
+	Application() :
+		RequestedFinish(false),
+		PerSec(SDL_GetPerformanceFrequency()),
+		LastTime(0U),
+		DeltaTime(0.f),
+		Window(nullptr),
+		Render(nullptr)
+	{
+		SDL_Init(SDL_INIT_EVERYTHING);
+	}
+	~Application() 
+	{
+		SDL_Quit();
+	}
 
-	SDL_Event Event;
-	static const Uint64 PerSec = SDL_GetPerformanceFrequency();
-	Uint64 Last = SDL_GetPerformanceCounter();
-	Uint64 Now = 0;
-	for (;;) {
-		while(SDL_PollEvent(&Event)) {
+	void ShowWindow()
+	{
+		Window = SDL_CreateWindow("PhyWater", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 640, 480, 0);
+		Render = SDL_CreateRenderer(Window, -1, 0);
+	}
+
+	void Execute()
+	{
+		Uint64 Now;
+		while (!RequestedFinish) {
+			PollEvent();
+			Now = SDL_GetPerformanceCounter();
+
+			DeltaTime = (Now - LastTime) / PerSec * 1000.f;
+
+			Update(DeltaTime);
+
+			Draw();
+
+			LastTime = Now;
+		}
+		if (Window) {
+			SDL_DestroyRenderer(Render);
+			SDL_DestroyWindow(Window);
+		}
+	}
+
+	void Update(float DeltaTime)
+	{
+		OneBall.Update(DeltaTime);
+	}
+
+	void PollEvent()
+	{
+		SDL_Event Event;
+		if (SDL_PollEvent(&Event)) {
 			if (Event.type == SDL_QUIT) {
-				SDL_Quit();
-				return 0;
+				RequestedFinish = true;
 			}
 		}
-		Now = SDL_GetPerformanceCounter();
-		ApplyGravity(Velocity, Position, (Now - Last) / float(PerSec) * 1000.f);
-		Last = Now;
-		printf("\r%lf %lf", Position.X, Position.Y);
+	}
 
+	void Draw()
+	{
 		SDL_SetRenderDrawColor(Render, 100, 100, 100, 0);
 		SDL_RenderClear(Render);
 
 		SDL_SetRenderDrawColor(Render, 200, 255, 200, 0);
-		SDL_RenderFillCircle(Render, Position.X, Position.Y, 10);
+		SDL_RenderFillCircle(Render, OneBall.Position.X, OneBall.Position.Y, 10);
 		SDL_RenderPresent(Render);
 	}
-	SDL_Quit();
+
+public:
+	Ball OneBall;
+
+private:
+	bool RequestedFinish;
+	const float PerSec;
+	Uint64 LastTime;
+	float DeltaTime;
+	SDL_Window* Window;
+	SDL_Renderer* Render;
+};
+
+int main(int argc, char** argv)
+{
+	Application App;
+	App.ShowWindow();
+
+	App.OneBall.Position = Vector(320.0, 240.0);
+	App.OneBall.Velocity = Vector(0.0, 0.0);
+
+	App.Execute();
 }
