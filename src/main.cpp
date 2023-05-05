@@ -2,6 +2,8 @@
 #include "SDL_timer.h"
 #include <SDL.h>
 #include <cmath>
+#include <random>
+#include <list>
 
 
 #define WINDOW_WIDTH		640
@@ -124,6 +126,9 @@ public:
 	Vector Velocity;
 	float Radius;
 	float Friction;
+	Uint64 Red;
+	Uint64 Green;
+	Uint64 Blue;
 public:
 	Ball() {}
 
@@ -131,19 +136,18 @@ public:
 	{
 		ApplyGravity(DeltaTime);
 		Clipping();
-		printf("\rPos:(%lf, %lf) Vel:(%lf, %lf)", Position.X, Position.Y, Velocity.X, Velocity.Y);
 	}
 
 	void Draw(SDL_Renderer* Render)
 	{
-		SDL_SetRenderDrawColor(Render, 200, 255, 200, 0);
+		SDL_SetRenderDrawColor(Render, Red, Green, Blue, 0);
 		SDL_RenderFillCircle(Render, Position.X, Position.Y, Radius);
 	}
 
 private:
 	void ApplyGravity(float DeltaTime)
 	{
-		static const Vector Gravity(.0, 9.8 * 0.0001);
+		static const Vector Gravity(.0, 9.8 * 0.001);
 		Vector OldVelocity = Velocity;
 		OldVelocity = OldVelocity + Gravity * DeltaTime;
 		Velocity = OldVelocity;
@@ -223,7 +227,9 @@ public:
 
 	void Update(float DeltaTime)
 	{
-		OneBall.Update(DeltaTime);
+		for (auto& ball : BallList) {
+			ball.Update(DeltaTime);
+		}
 	}
 
 	void PollEvent()
@@ -241,13 +247,15 @@ public:
 		SDL_SetRenderDrawColor(Render, 100, 100, 100, 0);
 		SDL_RenderClear(Render);
 
-		OneBall.Draw(Render);
+		for (auto& ball : BallList) {
+			ball.Draw(Render);
+		}
 
 		SDL_RenderPresent(Render);
 	}
 
 public:
-	Ball OneBall;
+	std::list<Ball> BallList;
 
 private:
 	bool RequestedFinish;
@@ -258,15 +266,84 @@ private:
 	SDL_Renderer* Render;
 };
 
+void HSVtoRGB(Uint64 H, Uint64 S, Uint64 V, Uint64& R, Uint64& G, Uint64& B)
+{
+	double H_dash = double(H) / 60.;
+	H_dash = H_dash - int(H / 60);
+	double S_dash = S / 100.;
+	double V_dash = V / 100.;
+
+	Uint64 tmp_A = V_dash * 255;
+	Uint64 tmp_B = V_dash * (1 - S_dash) * 255;
+	Uint64 tmp_C = V_dash * (1 - S_dash * H_dash) * 255;
+	Uint64 tmp_D = V_dash * (1 - S_dash * (1 - H_dash)) * 255;
+
+	if (S == 0) {
+		R = G = B = tmp_A;
+		return;
+	}
+	if (H < 60) {
+		R = tmp_A;
+		G = tmp_D;
+		B = tmp_B;
+		return;
+	} else if (H < 120) {
+		R = tmp_C;
+		G = tmp_A;
+		B = tmp_B;
+		return;
+	} else if (H < 180) {
+		R = tmp_B;
+		G = tmp_A;
+		B = tmp_D;
+		return;
+	} else if (H < 240) {
+		R = tmp_B;
+		G = tmp_C;
+		B = tmp_A;
+		return;
+	} else if (H < 300) {
+		R = tmp_D;
+		G = tmp_B;
+		B = tmp_A;
+		return;
+	} else if (H < 360) {
+		R = tmp_A;
+		G = tmp_B;
+		B = tmp_C;
+		return;
+	}
+}
+
 int main(int argc, char** argv)
 {
+
+	std::random_device seed_gen;
+	std::mt19937 engine(seed_gen());
+
 	Application App;
 	App.ShowWindow();
+	Uint64 H, S, V;
+	/* H : 150 - 280 */
+	/* S : 40-100 */
+	V = 100;
 
-	App.OneBall.Position = Vector(WINDOW_WIDTH / 2.f, 0.f);
-	App.OneBall.Velocity = Vector(0.0, 0.0);
-	App.OneBall.Radius = 10.f;
-	App.OneBall.Friction = 0.9f;
+	Ball ball;
+	for (int i = 0; i < 1000; ++i) {
+		H = engine() % 130 + 150;
+		S = engine() % 40 + 60;
+		/*
+		ball.Red = 200;
+		ball.Green = 255;
+		ball.Blue = 200;
+		*/
+		HSVtoRGB(H, S, V, ball.Red, ball.Green, ball.Blue);
+		ball.Position = Vector(engine() % WINDOW_WIDTH, engine() % WINDOW_HEIGHT);
+		ball.Velocity = Vector(engine() % 10, engine() % 10);
+		ball.Radius = 10.f;
+		ball.Friction = 0.9f;
+		App.BallList.push_back(ball);
+	}
 
 	App.Execute();
 }
