@@ -4,6 +4,11 @@
 #include <cmath>
 
 
+#define WINDOW_WIDTH		640
+#define WINDOW_HEIGHT		480
+#define VELOCITY_SIGMA		0.001
+
+
 int SDL_RenderDrawCircle(SDL_Renderer * renderer, int x, int y, int radius)
 {
 	int offsetx, offsety, d;
@@ -117,17 +122,58 @@ class Ball {
 public:
 	Vector Position;
 	Vector Velocity;
+	float Radius;
+	float Friction;
 public:
 	Ball() {}
 
 	void Update(float DeltaTime)
+	{
+		ApplyGravity(DeltaTime);
+		Clipping();
+		printf("\rPos:(%lf, %lf) Vel:(%lf, %lf)", Position.X, Position.Y, Velocity.X, Velocity.Y);
+	}
+
+	void Draw(SDL_Renderer* Render)
+	{
+		SDL_SetRenderDrawColor(Render, 200, 255, 200, 0);
+		SDL_RenderFillCircle(Render, Position.X, Position.Y, Radius);
+	}
+
+private:
+	void ApplyGravity(float DeltaTime)
 	{
 		static const Vector Gravity(.0, 9.8 * 0.0001);
 		Vector OldVelocity = Velocity;
 		OldVelocity = OldVelocity + Gravity * DeltaTime;
 		Velocity = OldVelocity;
 		Position = Position + Velocity;
-		printf("\rPos:%lf Vel:%lf", Position.Y, Velocity.Y);
+	}
+
+	void Clipping()
+	{
+		if (Position.X < Radius) {
+			Position.X = Radius;
+			Velocity.X *= -Friction;
+		}
+		if (Position.X > double(WINDOW_WIDTH) - Radius) {
+			Position.X = double(WINDOW_WIDTH) - Radius;
+			Velocity.X *= -Friction;
+		}
+		if (Position.Y < Radius) {
+			Position.Y = Radius;
+			Velocity.Y *= -Friction;
+		}
+		if (Position.Y > double(WINDOW_HEIGHT) - Radius) {
+			Position.Y = double(WINDOW_HEIGHT) - Radius;
+			Velocity.Y *= -Friction;
+		}
+		if (abs(Velocity.X) < VELOCITY_SIGMA) {
+			Velocity.X = 0.;
+		}
+		if (abs(Velocity.Y) < VELOCITY_SIGMA) {
+			Velocity.Y = 0.;
+		}
 	}
 };
 
@@ -136,7 +182,7 @@ public:
 	Application() :
 		RequestedFinish(false),
 		PerSec(SDL_GetPerformanceFrequency()),
-		LastTime(0U),
+		LastTime(SDL_GetPerformanceCounter()),
 		DeltaTime(0.f),
 		Window(nullptr),
 		Render(nullptr)
@@ -150,7 +196,7 @@ public:
 
 	void ShowWindow()
 	{
-		Window = SDL_CreateWindow("PhyWater", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 640, 480, 0);
+		Window = SDL_CreateWindow("PhyWater", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, 0);
 		Render = SDL_CreateRenderer(Window, -1, 0);
 	}
 
@@ -195,8 +241,8 @@ public:
 		SDL_SetRenderDrawColor(Render, 100, 100, 100, 0);
 		SDL_RenderClear(Render);
 
-		SDL_SetRenderDrawColor(Render, 200, 255, 200, 0);
-		SDL_RenderFillCircle(Render, OneBall.Position.X, OneBall.Position.Y, 10);
+		OneBall.Draw(Render);
+
 		SDL_RenderPresent(Render);
 	}
 
@@ -217,8 +263,10 @@ int main(int argc, char** argv)
 	Application App;
 	App.ShowWindow();
 
-	App.OneBall.Position = Vector(320.0, 240.0);
+	App.OneBall.Position = Vector(WINDOW_WIDTH / 2.f, 0.f);
 	App.OneBall.Velocity = Vector(0.0, 0.0);
+	App.OneBall.Radius = 10.f;
+	App.OneBall.Friction = 0.9f;
 
 	App.Execute();
 }
