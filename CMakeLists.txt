@@ -13,4 +13,6 @@ add_subdirectory(SDL)
 
 target_link_directories(${PROJECT_NAME} PUBLIC ${CMAKE_BINARY_DIR}/SDL)
 target_link_libraries(${PROJECT_NAME} PUBLIC SDL2)
+
+
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/SDL/include)
