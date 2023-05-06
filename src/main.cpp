@@ -1,5 +1,6 @@
 #include "SDL_render.h"
 #include "SDL_timer.h"
+#include "SDL_video.h"
 #include <SDL.h>
 #include <cmath>
 #include <random>
@@ -122,6 +123,8 @@ public:
 
 class Ball {
 public:
+	static Vector WindowSize;
+public:
 	Vector Position;
 	Vector Velocity;
 	float Radius;
@@ -160,16 +163,16 @@ private:
 			Position.X = Radius;
 			Velocity.X *= -Friction;
 		}
-		if (Position.X > double(WINDOW_WIDTH) - Radius) {
-			Position.X = double(WINDOW_WIDTH) - Radius;
+		if (Position.X > WindowSize.X - Radius) {
+			Position.X = WindowSize.X - Radius;
 			Velocity.X *= -Friction;
 		}
 		if (Position.Y < Radius) {
 			Position.Y = Radius;
 			Velocity.Y *= -Friction;
 		}
-		if (Position.Y > double(WINDOW_HEIGHT) - Radius) {
-			Position.Y = double(WINDOW_HEIGHT) - Radius;
+		if (Position.Y > WindowSize.Y - Radius) {
+			Position.Y = WindowSize.Y - Radius;
 			Velocity.Y *= -Friction;
 		}
 		if (abs(Velocity.X) < VELOCITY_SIGMA) {
@@ -181,6 +184,8 @@ private:
 	}
 };
 
+Vector Ball::WindowSize = Vector(WINDOW_WIDTH, WINDOW_HEIGHT);
+
 class Application {
 public:
 	Application() :
@@ -189,7 +194,8 @@ public:
 		LastTime(SDL_GetPerformanceCounter()),
 		DeltaTime(0.f),
 		Window(nullptr),
-		Render(nullptr)
+		Render(nullptr),
+		WindowPos(0., 0.)
 	{
 		SDL_Init(SDL_INIT_EVERYTHING);
 	}
@@ -200,8 +206,15 @@ public:
 
 	void ShowWindow()
 	{
-		Window = SDL_CreateWindow("PhyWater", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, 0);
+		Window = SDL_CreateWindow(
+				"PhyWater",
+				SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+				WINDOW_WIDTH, WINDOW_HEIGHT,
+				SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
 		Render = SDL_CreateRenderer(Window, -1, 0);
+		int X, Y;
+		SDL_GetWindowPosition(Window, &X, &Y);
+		WindowPos = Vector(X, Y);
 	}
 
 	void Execute()
@@ -234,10 +247,32 @@ public:
 
 	void PollEvent()
 	{
+		int X, Y;
+		Vector Velocity;
 		SDL_Event Event;
 		if (SDL_PollEvent(&Event)) {
-			if (Event.type == SDL_QUIT) {
+			switch (Event.type) {
+			case SDL_QUIT:
 				RequestedFinish = true;
+				break;
+			case SDL_WINDOWEVENT:
+				switch (Event.window.event) {
+				case SDL_WINDOWEVENT_MOVED:
+					SDL_GetWindowPosition(Window, &X, &Y);
+					Velocity = Vector((int(WindowPos.X - X) % WINDOW_WIDTH  * 0.5),
+									  (int(WindowPos.Y - Y) % WINDOW_HEIGHT * 0.5));
+					for (auto& ball : BallList) {
+						ball.Velocity = ball.Velocity + Velocity;
+					}
+					break;
+				case SDL_WINDOWEVENT_RESIZED:
+					Ball::WindowSize = Vector(Event.window.data1, Event.window.data2);
+					break;
+				case SDL_WINDOWEVENT_EXPOSED:
+					Draw();
+					break;
+				}
+				break;
 			}
 		}
 	}
@@ -264,6 +299,8 @@ private:
 	float DeltaTime;
 	SDL_Window* Window;
 	SDL_Renderer* Render;
+	Vector WindowPos;
+	Vector WindowSize;
 };
 
 void HSVtoRGB(Uint64 H, Uint64 S, Uint64 V, Uint64& R, Uint64& G, Uint64& B)
@@ -332,16 +369,11 @@ int main(int argc, char** argv)
 	for (int i = 0; i < 1000; ++i) {
 		H = engine() % 130 + 150;
 		S = engine() % 40 + 60;
-		/*
-		ball.Red = 200;
-		ball.Green = 255;
-		ball.Blue = 200;
-		*/
 		HSVtoRGB(H, S, V, ball.Red, ball.Green, ball.Blue);
 		ball.Position = Vector(engine() % WINDOW_WIDTH, engine() % WINDOW_HEIGHT);
 		ball.Velocity = Vector(engine() % 10, engine() % 10);
-		ball.Radius = 10.f;
 		ball.Friction = 0.9f;
+		ball.Radius = engine() % 20;
 		App.BallList.push_back(ball);
 	}
 
